@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <!-- import CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/element-ui/lib/theme-chalk/index.css">
+</head>
+<body>
+<div id="app">
+
+    <div v-show=!showTalk>
+        <el-row style="margin-top: 3px">
+            <el-input v-model="chatInfo.username" @keyup.enter.native="doShowTalk" placeholder="输入聊天昵称"></el-input>
+            <template>
+                <el-radio v-model="chatInfo.sex" label="男">男</el-radio>
+                <el-radio v-model="chatInfo.sex" label="女">女</el-radio>
+            </template>
+        </el-row>
+        <el-row style="align-self: right; margin-top: 5px">
+            <el-button type="primary" @click=doShowTalk()>确定</el-button>
+        </el-row>
+    </div>
+
+    <div v-show=showTalk>
+        <el-container>
+            <el-header>我的聊天昵称: {{this.chatInfo.username}} &#9835; 当前在线人数: {{this.onlineNumber}} 人</el-header>
+        </el-container>
+
+        <el-row>
+            <el-col :span="16">
+                <el-input type="textarea" :autosize="{ minRows: 10, maxRows: 50}" placeholder="聊天内容"
+                          v-model="textContent"></el-input>
+                <!--如果是原生的input，使用 @keyup.enter就可以，若是使用了element-ui，则要加上native限制符，因为element-ui把input进行了封装，原事件就不起作用了-->
+                <el-input v-model="chatInfo.message" @keyup.enter.native="websocketsend"
+                          placeholder="请输入内容来发送"></el-input>
+                <el-button type="danger" @click="websocketclose">关闭</el-button>
+                <el-button type="primary" @click="websocketsend">发送</el-button>
+            </el-col>
+            <el-col :span="8">
+                <el-table :data="userInfo" style="width: 100%">
+                    <el-table-column property="username" label="昵称"></el-table-column>
+                    <el-table-column property="sex" label="性别"></el-table-column>
+                </el-table>
+            </el-col>
+        </el-row>
+    </div>
+</div>
+</body>
+<!-- import Vue before Element -->
+<script src="https://unpkg.com/vue/dist/vue.js"></script>
+<!-- import JavaScript -->
+<script src="https://unpkg.com/element-ui/lib/index.js"></script>
+
+<script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+<script>
+    new Vue({
+        el: '#app',
+        data: function () {
+            return {
+                textContent: '',
+                chatInfo: {
+                    username: '',
+                    message: '',
+                    sex: '男'
+                },
+                onlineNumber: 0,
+
+                webSock: null,
+                showTalk: false,
+
+                userInfo: [{"username":"撒肯德基", "sex":"女"}],
+            }
+        },
+
+        created() {
+
+        },
+
+        destroyed: function () {
+            //页面销毁时关闭长连接
+            this.websocketclose();
+        },
+
+        methods: {
+            initWebSocket: function () {
+                const wsuri = "ws://127.0.0.1:8080/websocket/" + this.chatInfo.username;//ws地址
+                this.webSock = new WebSocket(wsuri);
+
+                this.webSock.onopen = this.websocketonopen;
+                this.webSock.onerror = this.websocketonerror;
+
+                this.webSock.onmessage = this.websocketonmessage;
+                this.webSock.onclose = this.websocketclose;
+            },
+
+            websocketonopen(e) {
+                console.log("WebSocket连接成功");
+            },
+            websocketonerror(e) { //错误
+                console.log("WebSocket连接发生错误");
+            },
+
+            websocketonmessage(e) { //数据接收
+                //注意：长连接我们是后台直接1秒推送一条数据，
+                //但是点击某个列表时，会发送给后台一个标识，后台根据此标识返回相对应的数据，
+                //这个时候数据就只能从一个出口出，所以让后台加了一个键，例如键为1时，是每隔1秒推送的数据，为2时是发送标识后再推送的数据，以作区分
+                let messageData = JSON.parse(e.data);
+
+                if (messageData.messageType === 'JOIN') {
+                    //如果有人加入，那个更改当前在线总人数
+                    this.onlineNumber = messageData.onlineNumber
+                }
+
+                let user = messageData.username;
+                if (user === this.chatInfo.username) {
+                    this.textContent = this.textContent + "\n" + "我自己: " + messageData.message;
+                } else {
+                    this.textContent = this.textContent + "\n" + messageData.username + ": " + messageData.message;
+                }
+
+            },
+
+            websocketsend() {//数据发送
+                this.webSock.send(JSON.stringify(this.chatInfo));
+                this.chatInfo.message = '';
+            },
+
+            websocketclose(e) { //关闭
+                console.log("connection closed (" + e.code + ")");
+            },
+
+            async getUserInfo() {
+                // setTimeout
+                // setInterval
+                setTimeout(async function () {
+                    console.log("111111111");
+                    //获取用户列表
+                    axios.get('http://127.0.0.1:8080/socket/userinfo')
+                        .then((response) => {
+                            console.log(response.data);
+                            this.userInfo = response.data;
+                        })
+                        .catch((res) => {
+                            console.log(res)
+                        });
+                }, 1000);
+
+
+                setTimeout(async function () {
+                    this.userInfo.forEach((val, index) => {
+                        console.log(index + "==========" + JSON.stringify(val));
+                        // Vue.set(this.userInfo, 0, {"username":"a看就看", "sex":"男"});
+
+                        this.userInfo[0].username = 'YYYY';
+                        this.userInfo[0].sex='男'
+
+                    });
+                }, 2000);
+
+            },
+
+            doShowTalk() {
+                this.showTalk = !this.showTalk;
+                //输入聊天昵称后 在此处进行服务器连接，
+                //页面刚进入时开启长连接
+                this.initWebSocket();
+
+                this.getUserInfo();
+            }
+
+        }
+    })
+</script>
+</html>

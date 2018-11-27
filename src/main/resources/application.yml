@@ -1,0 +1,31 @@
+#thymeleaf默认的资源文件的约定目录结构
+#
+#Maven的资源文件目录：/src/Java/resources
+#spring-boot项目静态文件目录：/src/java/resources/static
+#spring-boot项目模板文件目录：/src/java/resources/templates
+#
+#所以在默认的情况下  你的.html页面 需要放在这三个目录下面中的某一个中 ，当然你也可以自己指定资源模板位置，其在application.yml中的配置如下：
+
+#spring：
+#  thymeleaf:
+#      prefix: classpath:/page/       //指定模板加载位置
+#      suffix: .html                 //指定走缀类型
+#      mode: HTML5
+#      encoding: UTF-8　　　　        //指定编码
+#      content-type: text/html
+#      cache: false                   //页面不缓存
+spring:
+  jackson:
+    mapper.DEFAULT_VIEW_INCLUSION: true
+  thymeleaf:
+    prefix: classpath:/templates/
+    suffix: .html
+    mode: HTML5
+    encoding: UTF-8
+    cache: false
+  resources:
+    chain:
+      strategy:
+        content:
+          enabled: true
+          paths: /**
